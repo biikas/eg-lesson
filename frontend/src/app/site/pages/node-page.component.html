@@ -1,0 +1,104 @@
+@if (notFound()) {
+  <div class="container-xl"><app-empty emoji="🧭" title="We couldn't find that page" text="It may have moved. Try searching or exploring all streams."><a routerLink="/explore" class="btn btn-primary">Explore</a></app-empty></div>
+}
+@if (data(); as d) {
+  <section class="banner" [style.--c]="d.node.color || '#6C3BFF'">
+    <div class="container-xl">
+      <nav class="crumbs">
+        <a routerLink="/"><i class="bi bi-house-fill"></i></a>
+        @for (c of d.breadcrumb; track c.id; let last = $last) {
+          <i class="bi bi-chevron-right"></i>
+          @if (last) { <span>{{ c.name }}</span> } @else { <a [routerLink]="['/explore', c.slug]">{{ c.name }}</a> }
+        }
+      </nav>
+      <div class="b-row">
+        <span class="b-ico"><app-icon [name]="d.node.icon" fallback="📚" /></span>
+        <div class="flex-grow-1">
+          <span class="type">{{ d.node.typeLabel }}</span>
+          <h1>{{ d.node.name }}</h1>
+          @if (d.node.description) { <p class="desc">{{ d.node.description }}</p> }
+          <div class="b-stats">
+            <span><i class="bi bi-journal-text"></i> {{ d.postCount }} materials</span>
+            @if (d.children.length) { <span><i class="bi bi-diagram-3"></i> {{ d.children.length }} {{ d.children[0].typeLabel.toLowerCase() }}s</span> }
+            @if (isMyCourse()) { <span class="mine"><i class="bi bi-star-fill"></i> Your course</span> }
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="container-xl">
+    <app-promo-slot placement="NODE_TOP" [node]="slug" class="d-block mb-4" />
+
+    @if (d.children.length) {
+      <section class="mb-5">
+        <div class="section-title"><h2>{{ d.children[0].typeLabel }}s</h2></div>
+        <div class="tiles">
+          @for (c of d.children; track c.id) {
+            <a class="tile" [routerLink]="['/explore', c.slug]" [style.--c]="c.color || d.node.color || '#6C3BFF'" [class.empty]="c.postCount === 0">
+              <span class="t-ico"><app-icon [name]="c.icon" [fallback]="c.typeCode === 'SUBJECT' ? '📘' : '📂'" /></span>
+              <span class="t-name">{{ c.shortName || c.name }}</span>
+              <span class="t-meta">
+                @if (c.postCount) { {{ c.postCount }} notes } @else { Coming soon }
+                @if (c.children.length) { · {{ c.children.length }} {{ c.children[0].typeLabel.toLowerCase() }}s }
+              </span>
+            </a>
+          }
+        </div>
+      </section>
+    }
+
+    @if (quizzes().length) {
+      <section class="mb-5">
+        <div class="section-title"><h2>⚡ Practice quizzes</h2><a routerLink="/quizzes" [queryParams]="{ node: slug }">All →</a></div>
+        <div class="row g-3">
+          @for (q of quizzes(); track q.id) {
+            <div class="col-sm-6 col-lg-3">
+              <a class="qz eg-card eg-hover" [routerLink]="['/quiz', q.slug]">
+                <span class="fw-800">{{ q.title }}</span>
+                <small class="text-muted">{{ q.questionCount }} questions · {{ q.attemptCount }} attempts</small>
+              </a>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <section id="materials">
+      <div class="section-title flex-wrap">
+        <h2>Study material</h2>
+        <div class="d-flex gap-2">
+          <select class="form-select form-select-sm" [value]="lang" (change)="setLang($any($event.target).value)" aria-label="Language">
+            <option value="">All languages</option><option value="EN">English</option><option value="NE">नेपाली</option>
+          </select>
+          <select class="form-select form-select-sm" [value]="sort" (change)="setSort($any($event.target).value)" aria-label="Sort">
+            <option value="latest">Newest</option><option value="popular">Most read</option><option value="oldest">Chapter order</option><option value="title">A–Z</option>
+          </select>
+        </div>
+      </div>
+      @if (d.contentTypes.length) {
+        <div class="chip-row mb-3">
+          <button class="chip" [class.active]="!type" (click)="setType('')">All <span class="count">{{ d.postCount }}</span></button>
+          @for (t of d.contentTypes; track t.id) {
+            <button class="chip" [class.active]="type === t.code" (click)="setType(t.code)"><app-icon [name]="t.icon" /> {{ t.name }} <span class="count">{{ t.count }}</span></button>
+          }
+        </div>
+      }
+      @if (!posts()) {
+        <div class="row g-3">@for (i of [1,2,3]; track i) { <div class="col-md-4"><div class="skeleton" style="height:260px"></div></div> }</div>
+      } @else if (posts()!.items.length) {
+        <div class="row g-3">
+          @for (p of posts()!.items; track p.id) { <div class="col-sm-6 col-lg-4"><app-post-card [post]="p" /></div> }
+        </div>
+        <app-pager [page]="posts()!.page" [totalPages]="posts()!.totalPages" [total]="posts()!.total" (pageChange)="go($event)" />
+      } @else {
+        <app-empty emoji="✍️" title="Notes are on the way" text="Our team is writing material for this section. Request a chapter and we'll prioritise it.">
+          <a routerLink="/me" [queryParams]="{ tab: 'requests', node: d.node.id }" class="btn btn-grad">Request a note</a>
+        </app-empty>
+      }
+    </section>
+  </div>
+}
+@if (!data() && !notFound()) {
+  <div class="container-xl pt-4"><div class="skeleton mb-4" style="height:180px"></div><div class="row g-3">@for (i of [1,2,3,4]; track i) { <div class="col-6 col-md-3"><div class="skeleton" style="height:120px"></div></div> }</div></div>
+}

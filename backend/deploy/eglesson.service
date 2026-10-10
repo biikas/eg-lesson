@@ -1,0 +1,16 @@
+# /etc/systemd/system/eglesson.service — runs next to the existing Tomcat without touching it.
+[Unit]
+Description=eglesson learning platform
+After=network.target mysql.service
+
+[Service]
+User=mbank
+WorkingDirectory=/home/mbank/eglesson
+EnvironmentFile=/home/mbank/eglesson/eglesson.env
+ExecStart=/usr/bin/java -Xmx512m -jar /home/mbank/eglesson/eglesson.war
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

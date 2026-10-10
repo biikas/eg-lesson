@@ -1,0 +1,144 @@
+<div class="container-xl pt-4">
+  @if (auth.me(); as me) {
+    <section class="hero-card">
+      <span class="av" [style.background]="me.avatarColor || '#6C3BFF'">{{ initials(me.fullName) }}</span>
+      <div class="flex-grow-1">
+        <h1>{{ me.fullName }}</h1>
+        <p class="m-0">
+          @if (me.courseSlug) { <a [routerLink]="['/explore', me.courseSlug]" class="course"><i class="bi bi-mortarboard-fill"></i> {{ me.courseName }}</a> }
+          @else { <a (click)="go('profile')" class="course" role="button"><i class="bi bi-plus-circle"></i> Choose your class</a> }
+        </p>
+      </div>
+      <div class="streak-big" [class.cold]="!stats()?.streak">
+        <span class="fire">🔥</span>
+        <div><b>{{ stats()?.streak ?? 0 }}</b><small>day streak</small></div>
+      </div>
+    </section>
+
+    <div class="stats">
+      <div class="st"><span>📖</span><b>{{ stats()?.notesOpened ?? '–' }}</b><small>notes opened</small></div>
+      <div class="st"><span>✅</span><b>{{ stats()?.notesCompleted ?? '–' }}</b><small>finished</small></div>
+      <div class="st"><span>📌</span><b>{{ stats()?.bookmarks ?? '–' }}</b><small>saved</small></div>
+      <div class="st"><span>⚡</span><b>{{ stats()?.quizzesTaken ?? '–' }}</b><small>quizzes{{ stats()?.quizAverage != null ? ' · avg ' + stats()?.quizAverage + '%' : '' }}</small></div>
+      <div class="st"><span>🏆</span><b>{{ stats()?.bestStreak ?? '–' }}</b><small>best streak</small></div>
+    </div>
+
+    <div class="eg-card eg-card-pad mb-4 heat-card">
+      <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="fw-800 m-0">Study activity · last 13 weeks</h6><small class="text-muted">Read a note or take a quiz to light up today</small></div>
+      <div class="heat">
+        @for (w of heat; track $index) { <div class="col">@for (d of w; track d.date) { <span [class.on]="d.on" [class.future]="d.future" [title]="d.date"></span> }</div> }
+      </div>
+    </div>
+
+    <nav class="tabs">
+      @for (t of tabs; track t.id) { <button [class.on]="tab() === t.id" (click)="go(t.id)"><i class="bi {{ t.icon }}"></i> {{ t.label }}</button> }
+    </nav>
+
+    @switch (tab()) {
+      @case ('overview') {
+        <h4 class="fw-800 mb-3">Reading history</h4>
+        @for (h of history()?.items || []; track h.post.id) {
+          <a class="hist eg-card eg-hover" [routerLink]="['/read', h.post.slug]">
+            <span class="h-ico"><app-icon [name]="h.post.node?.icon" /></span>
+            <div class="flex-grow-1 min-w-0">
+              <div class="fw-800 text-truncate">{{ h.post.title }}</div>
+              <small class="text-muted">{{ h.post.node?.pathLabel }} · {{ h.lastReadAt | timeAgo }}</small>
+            </div>
+            <div class="prog"><div class="bar"><span [style.width.%]="h.progress"></span></div><small>{{ h.progress >= 90 ? 'Done ✓' : h.progress + '%' }}</small></div>
+          </a>
+        } @empty {
+          @if (history()) { <app-empty emoji="📚" title="Nothing read yet" text="Open any note and it will show up here so you can continue later."><a routerLink="/explore" class="btn btn-grad">Find notes</a></app-empty> }
+        }
+        @if (history(); as h) { <app-pager [page]="h.page" [totalPages]="h.totalPages" (pageChange)="loadHistory($event)" /> }
+      }
+      @case ('saved') {
+        @if (saved(); as s) {
+          @if (s.items.length) {
+            <div class="row g-3">@for (p of s.items; track p.id) { <div class="col-sm-6 col-lg-4"><app-post-card [post]="p" /></div> }</div>
+            <app-pager [page]="s.page" [totalPages]="s.totalPages" (pageChange)="loadSaved($event)" />
+          } @else { <app-empty emoji="📌" title="No saved notes" text="Tap “Save” on any note to keep it here for revision." /> }
+        }
+      }
+      @case ('quizzes') {
+        @if (attempts(); as a) {
+          @if (a.length) {
+            <div class="eg-card overflow-hidden">
+              <table class="table table-hover m-0">
+                <thead><tr><th>Quiz</th><th>Score</th><th class="d-none d-sm-table-cell">Time</th><th>When</th></tr></thead>
+                <tbody>
+                  @for (x of a; track x.id) {
+                    <tr>
+                      <td><a [routerLink]="['/quiz', x.quizSlug]" class="fw-bold">{{ x.quizTitle }}</a></td>
+                      <td><span class="score" [class.good]="x.score / x.total >= .8" [class.bad]="x.score / x.total < .5">{{ x.score }}/{{ x.total }}</span></td>
+                      <td class="d-none d-sm-table-cell text-muted">{{ x.durationSeconds }}s</td>
+                      <td class="text-muted">{{ x.createdAt | timeAgo }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else { <app-empty emoji="⚡" title="No quizzes yet" text="Practise with quick MCQs and your scores will appear here."><a routerLink="/quizzes" class="btn btn-grad">Take a quiz</a></app-empty> }
+        }
+      }
+      @case ('requests') {
+        <div class="row g-4">
+          <div class="col-lg-5">
+            <div class="eg-card eg-card-pad">
+              <h5 class="fw-800">Request a note ✍️</h5>
+              <p class="text-2 small">Tell us exactly what you need. The more specific, the faster we can write it.</p>
+              <div class="mb-3"><label class="form-label">Topic / chapter</label><input class="form-control" [(ngModel)]="reqTopic" maxlength="255" placeholder="e.g. Class 10 Science — Electricity, Ex 5.2"></div>
+              <div class="mb-3"><label class="form-label">Subject (optional)</label>
+                <select class="form-select" [(ngModel)]="reqNode"><option [ngValue]="null">— choose —</option>@for (s of subjects; track s.id) { <option [ngValue]="s.id">{{ s.label }}</option> }</select>
+              </div>
+              <div class="mb-3"><label class="form-label">Details (optional)</label><textarea class="form-control" rows="3" [(ngModel)]="reqDetails" maxlength="2000" placeholder="Which questions, which book, exam date…"></textarea></div>
+              <button class="btn btn-grad w-100" [disabled]="!reqTopic.trim()" (click)="sendRequest()">Send request</button>
+            </div>
+          </div>
+          <div class="col-lg-7">
+            <h5 class="fw-800 mb-3">Your requests</h5>
+            @for (r of requests() || []; track r.id) {
+              <div class="req eg-card">
+                <div class="d-flex justify-content-between gap-2"><strong>{{ r.topic }}</strong><span class="rst {{ r.status }}">{{ statusLabel(r.status) }}</span></div>
+                @if (r.nodePath) { <small class="text-muted">{{ r.nodePath }}</small> }
+                @if (r.adminNote) { <div class="note"><i class="bi bi-chat-quote"></i> {{ r.adminNote }}</div> }
+                @if (r.postSlug) { <a class="btn btn-soft btn-sm mt-2" [routerLink]="['/read', r.postSlug]">Read: {{ r.postTitle }} →</a> }
+                <small class="text-muted d-block mt-1">{{ r.createdAt | timeAgo }}</small>
+              </div>
+            } @empty { <p class="text-muted">No requests yet.</p> }
+          </div>
+        </div>
+      }
+      @case ('profile') {
+        <div class="row g-4">
+          <div class="col-lg-7">
+            <div class="eg-card eg-card-pad">
+              <h5 class="fw-800 mb-3">Profile</h5>
+              <div class="mb-3"><label class="form-label">Full name</label><input class="form-control" [(ngModel)]="profile.fullName" maxlength="120"></div>
+              <div class="row g-2 mb-3">
+                <div class="col-sm-7"><label class="form-label">School / college</label><input class="form-control" [(ngModel)]="profile.school" maxlength="160"></div>
+                <div class="col-sm-5"><label class="form-label">District</label><input class="form-control" [(ngModel)]="profile.district" maxlength="60" placeholder="e.g. Kathmandu"></div>
+              </div>
+              <label class="form-label">My class / course</label>
+              <app-course-picker [value]="profile.courseNodeId" (valueChange)="profile.courseNodeId = $event" />
+              <button class="btn btn-primary mt-3" (click)="saveProfile()">Save profile</button>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="eg-card eg-card-pad mb-3">
+              <h5 class="fw-800 mb-3">Change password</h5>
+              <input class="form-control mb-2" type="password" placeholder="Current password" [(ngModel)]="pw.currentPassword" autocomplete="current-password">
+              <input class="form-control mb-3" type="password" placeholder="New password (8+ characters)" [(ngModel)]="pw.newPassword" autocomplete="new-password">
+              <button class="btn btn-ghost" (click)="changePassword()">Update password</button>
+            </div>
+            <div class="eg-card eg-card-pad">
+              <h6 class="fw-800">Appearance</h6>
+              <button class="btn btn-soft" (click)="site.toggleTheme()"><i class="bi" [class.bi-moon-stars-fill]="!site.isDark()" [class.bi-sun-fill]="site.isDark()"></i> Switch to {{ site.isDark() ? 'light' : 'dark' }} mode</button>
+              <hr>
+              <button class="btn btn-outline-danger" (click)="auth.logout()"><i class="bi bi-box-arrow-right"></i> Sign out</button>
+            </div>
+          </div>
+        </div>
+      }
+    }
+  }
+</div>

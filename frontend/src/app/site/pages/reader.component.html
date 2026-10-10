@@ -1,0 +1,145 @@
+<div class="read-progress no-print"><span [style.width.%]="progress()"></span></div>
+
+@if (notFound()) {
+  <div class="container-xl"><app-empty emoji="📄" title="This note isn't available" text="It may have been moved or unpublished."><a routerLink="/explore" class="btn btn-primary">Explore notes</a></app-empty></div>
+}
+
+@if (post(); as p) {
+  <div class="container-xl reader" [class.focus]="focus()" [style.--c]="p.card.contentType.color || '#6C3BFF'">
+    @if (p.card.status !== 'PUBLISHED') {
+      <div class="alert alert-warning mt-3 mb-0 no-print"><i class="bi bi-eye"></i> Preview — this post is <strong>{{ p.card.status.toLowerCase() }}</strong> and not visible to students.</div>
+    }
+    <div class="layout">
+      <aside class="reader-aside toc-col">
+        @if (toc().length) {
+          <div class="toc">
+            <div class="toc-h">On this page</div>
+            @for (t of toc(); track t.id) {
+              <button [class.l3]="t.level === 3" [class.on]="activeId() === t.id" (click)="jump(t.id)">{{ t.text }}</button>
+            }
+          </div>
+        }
+      </aside>
+
+      <article class="main-col">
+        <nav class="crumbs no-print">
+          @for (c of p.breadcrumb; track c.id; let first = $first) {
+            @if (!first) { <i class="bi bi-chevron-right"></i> }
+            <a [routerLink]="['/explore', c.slug]">{{ c.name }}</a>
+          }
+        </nav>
+
+        <div class="tags-top">
+          <span class="tag" [style.background]="(p.card.contentType.color || '#6C3BFF') + '1f'" [style.color]="p.card.contentType.color"><app-icon [name]="p.card.contentType.icon" /> {{ p.card.contentType.name }}</span>
+          @if (p.card.difficulty) { <span class="tag badge-soft">{{ difficultyLabel(p.card.difficulty) }}</span> }
+          @if (p.card.language === 'NE') { <span class="tag badge-soft np">नेपाली</span> }
+        </div>
+        <h1 [class.np]="p.card.language === 'NE'">{{ p.card.title }}</h1>
+        <div class="byline">
+          <span><i class="bi bi-clock"></i> {{ p.card.readMinutes }} min read</span>
+          <span><i class="bi bi-eye"></i> {{ p.card.viewCount | compact }} reads</span>
+          @if (p.card.publishedAt) { <span><i class="bi bi-calendar3"></i> {{ p.card.publishedAt | timeAgo }}</span> }
+          @if (p.card.authorName) { <span><i class="bi bi-pen"></i> {{ p.card.authorName }}</span> }
+        </div>
+
+        <div class="reader-actions toolbar">
+          <button class="act" [class.on]="p.liked" (click)="like()"><i class="bi" [class.bi-heart-fill]="p.liked" [class.bi-heart]="!p.liked"></i> {{ p.card.likeCount }}</button>
+          <button class="act" [class.on]="p.bookmarked" (click)="bookmark()"><i class="bi" [class.bi-bookmark-fill]="p.bookmarked" [class.bi-bookmark]="!p.bookmarked"></i> {{ p.bookmarked ? 'Saved' : 'Save' }}</button>
+          <div class="position-relative">
+            <button class="act" (click)="shareOpen.set(!shareOpen())"><i class="bi bi-share"></i> Share</button>
+            @if (shareOpen()) {
+              <div class="dropdown-menu show share-menu">
+                <button class="dropdown-item" (click)="share('whatsapp')"><i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp</button>
+                <button class="dropdown-item" (click)="share('viber')"><i class="bi bi-chat-dots me-2" style="color:#7360f2"></i>Viber</button>
+                <button class="dropdown-item" (click)="share('facebook')"><i class="bi bi-facebook me-2 text-primary"></i>Facebook</button>
+                <button class="dropdown-item" (click)="share('copy')"><i class="bi bi-link-45deg me-2"></i>Copy link</button>
+              </div>
+            }
+          </div>
+          <span class="flex-grow-1"></span>
+          <button class="act icon" (click)="setFont(-1)" title="Smaller text" aria-label="Smaller text">A−</button>
+          <button class="act icon" (click)="setFont(1)" title="Bigger text" aria-label="Bigger text">A+</button>
+          <button class="act icon" [class.on]="focus()" (click)="focus.set(!focus())" title="Focus mode" aria-label="Focus mode"><i class="bi bi-arrows-angle-expand"></i></button>
+          <button class="act icon" (click)="print()" title="Print / save as PDF" aria-label="Print"><i class="bi bi-printer"></i></button>
+        </div>
+
+        @if (p.card.coverImage) { <img class="cover" [src]="p.card.coverImage" alt=""> }
+        @if (video) { <div class="video"><iframe [src]="video" title="Video lesson" allowfullscreen loading="lazy"></iframe></div> }
+
+        <div id="note-body" [style.--prose-size.px]="fontSize()">
+          <app-rich-content [html]="p.body" [lang]="p.card.language" (toc)="toc.set($event)" />
+        </div>
+
+        @if (p.attachments.length) {
+          <div class="files">
+            <h4 class="fw-800">📎 Downloads</h4>
+            @for (a of p.attachments; track a.url) {
+              <a class="file eg-card eg-hover" [href]="a.url" target="_blank" rel="noopener">
+                <span class="f-ico"><i class="bi" [class.bi-file-earmark-pdf-fill]="a.url.endsWith('.pdf')" [class.bi-file-earmark-arrow-down-fill]="!a.url.endsWith('.pdf')"></i></span>
+                <span class="flex-grow-1 fw-700">{{ a.title }}</span><i class="bi bi-download"></i>
+              </a>
+            }
+          </div>
+        }
+
+        @if (p.tags.length) {
+          <div class="tags no-print">@for (t of p.tags; track t) { <a class="chip" routerLink="/search" [queryParams]="{ q: t }">#{{ t }}</a> }</div>
+        }
+
+        <div class="done no-print">
+          <div>
+            <div class="fw-800">Finished reading? 🎉</div>
+            <small class="text-muted">Save it for revision or test yourself with a quick quiz.</small>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-soft" (click)="bookmark()">{{ p.bookmarked ? 'Saved ✓' : 'Save for later' }}</button>
+            <a class="btn btn-grad" routerLink="/quizzes" [queryParams]="{ node: p.breadcrumb[p.breadcrumb.length - 1]?.slug }">Practice</a>
+          </div>
+        </div>
+
+        <app-promo-slot placement="POST_INLINE" [node]="p.card.node?.slug" class="d-block my-4" />
+
+        @if (p.previous || p.next) {
+          <div class="prevnext no-print">
+            @if (p.previous) {
+              <a class="pn eg-card eg-hover" [routerLink]="['/read', p.previous.slug]"><small><i class="bi bi-arrow-left"></i> Previous</small><span>{{ p.previous.title }}</span></a>
+            } @else { <span></span> }
+            @if (p.next) {
+              <a class="pn next eg-card eg-hover" [routerLink]="['/read', p.next.slug]"><small>Next <i class="bi bi-arrow-right"></i></small><span>{{ p.next.title }}</span></a>
+            }
+          </div>
+        }
+
+        <app-comments [postId]="p.card.id" [allow]="p.allowComments" />
+      </article>
+
+      <aside class="reader-aside side-col">
+        <div class="sticky">
+          @if (p.card.node) {
+            <a class="subject eg-card eg-hover" [routerLink]="['/explore', p.card.node.slug]" [style.--c]="p.card.node.color || '#6C3BFF'">
+              <span class="s-ico"><app-icon [name]="p.card.node.icon" /></span>
+              <div><small class="text-muted">More in</small><div class="fw-800">{{ p.card.node.name }}</div></div>
+            </a>
+          }
+          <app-promo-slot placement="SIDEBAR" layout="side" [node]="p.card.node?.slug" class="d-block mb-3" />
+        </div>
+      </aside>
+    </div>
+
+    @if (p.related.length) {
+      <section class="mt-5 no-print">
+        <div class="section-title"><h2>Keep learning</h2></div>
+        <div class="row g-3">
+          @for (r of p.related; track r.id) { <div class="col-sm-6 col-lg-4"><app-post-card [post]="r" /></div> }
+        </div>
+      </section>
+    }
+  </div>
+}
+
+@if (!post() && !notFound()) {
+  <div class="container-xl reader"><div class="layout"><div></div><div class="pt-4">
+    <div class="skeleton mb-3" style="height:22px;width:40%"></div><div class="skeleton mb-3" style="height:52px"></div>
+    @for (i of [1,2,3,4,5,6]; track i) { <div class="skeleton mb-2" style="height:16px"></div> }
+  </div></div></div>
+}

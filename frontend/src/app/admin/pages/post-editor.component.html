@@ -1,0 +1,146 @@
+<div class="topbar">
+  <a routerLink="/admin/posts" class="btn btn-ghost btn-sm"><i class="bi bi-arrow-left"></i> Posts</a>
+  <span class="state">
+    @if (saving()) { <i class="bi bi-arrow-repeat spin"></i> Saving… }
+    @else if (dirty()) { <i class="bi bi-circle-fill text-warning" style="font-size:.5rem"></i> Unsaved changes (autosaved locally) }
+    @else if (meta()) { <i class="bi bi-check2-circle text-success"></i> Saved {{ meta()!.updatedAt | timeAgo }} }
+  </span>
+  <span class="flex-grow-1"></span>
+  <span class="small text-muted d-none d-md-inline">{{ wordCount() }} words · ~{{ Math.max(1, Math.ceil(wordCount() / 180)) }} min read</span>
+  <button class="btn btn-ghost btn-sm" (click)="preview()"><i class="bi bi-eye"></i> Preview</button>
+</div>
+
+@if (restored()) {
+  <div class="alert alert-info d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-life-preserver"></i> We restored an unsaved draft from this browser.</span>
+    <button class="btn btn-sm btn-ghost" (click)="discardDraft()">Discard it</button>
+  </div>
+}
+
+<div class="grid">
+  <div class="main">
+    <input class="title" [(ngModel)]="f.title" (ngModelChange)="touch(); autoSlug()" placeholder="Post title…" maxlength="255">
+    <div class="slug">
+      <span class="text-muted">/read/</span>
+      <input [(ngModel)]="f.slug" (ngModelChange)="slugEdited = true; touch()" placeholder="auto-from-title">
+    </div>
+
+    <quill-editor class="d-block" [(ngModel)]="f.body" (ngModelChange)="onBody()" [modules]="modules" format="html" theme="snow"
+                  placeholder="Write the note… Use H2/H3 headings — they become the table of contents. Insert formulas with ƒx, tables, code and images."
+                  (onEditorCreated)="created($event)" [sanitize]="false" />
+
+    <div class="eg-card eg-card-pad mt-3">
+      <label class="form-label">Summary <span class="text-muted fw-normal">(shown on cards and search; leave empty to use the first lines)</span></label>
+      <textarea class="form-control" rows="2" maxlength="600" [(ngModel)]="f.excerpt" (ngModelChange)="touch()"></textarea>
+    </div>
+
+    <div class="eg-card eg-card-pad mt-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="form-label m-0">📎 Downloads (PDF, images)</label>
+        <app-media-picker accept="application/pdf,image/*" label="Upload file" (picked)="addAttachment($event)" />
+      </div>
+      @for (a of f.attachments; track a; let i = $index) {
+        <div class="d-flex gap-2 mb-2 align-items-center">
+          <i class="bi bi-file-earmark-arrow-down text-muted"></i>
+          <input class="form-control form-control-sm" [(ngModel)]="a.title" (ngModelChange)="touch()" placeholder="Label shown to students">
+          <a [href]="a.url" target="_blank" class="small text-truncate" style="max-width:180px">{{ a.url }}</a>
+          <button class="btn btn-ghost btn-sm text-danger" (click)="removeAttachment(i)"><i class="bi bi-x-lg"></i></button>
+        </div>
+      } @empty { <p class="small text-muted m-0">No files attached.</p> }
+    </div>
+
+    <details class="eg-card eg-card-pad mt-3">
+      <summary class="fw-800">🔎 SEO &amp; sharing</summary>
+      <div class="mt-3">
+        <label class="form-label">Meta title</label>
+        <input class="form-control mb-2" [(ngModel)]="f.metaTitle" (ngModelChange)="touch()" maxlength="255" [placeholder]="f.title">
+        <label class="form-label">Meta description</label>
+        <textarea class="form-control" rows="2" [(ngModel)]="f.metaDescription" (ngModelChange)="touch()" maxlength="500" [placeholder]="f.excerpt"></textarea>
+        <div class="serp">
+          <div class="u">eglesson › read › {{ f.slug || 'your-post' }}</div>
+          <div class="t">{{ f.metaTitle || f.title || 'Post title' }}</div>
+          <div class="d">{{ f.metaDescription || f.excerpt || 'The summary appears here in Google results.' }}</div>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <aside class="side">
+    <div class="eg-card eg-card-pad">
+      <h6 class="fw-800 d-flex justify-content-between">Publish <span class="st st-{{ meta()?.status || 'NEW' }}">{{ scheduled() && f.status === 'PUBLISHED' ? 'SCHEDULED' : (meta()?.status || 'NEW') }}</span></h6>
+      @if (canPublish()) {
+        <label class="form-label mt-2">Publish date <span class="text-muted fw-normal">(future = scheduled)</span></label>
+        <input class="form-control form-control-sm mb-3" type="datetime-local" [(ngModel)]="f.publishAt" (ngModelChange)="touch()">
+        <div class="d-grid gap-2">
+          <button class="btn btn-grad" [disabled]="saving()" (click)="save('PUBLISHED')">
+            <i class="bi" [class.bi-send-fill]="!scheduled()" [class.bi-alarm]="scheduled()"></i>
+            {{ scheduled() ? 'Schedule' : (meta()?.status === 'PUBLISHED' ? 'Update' : 'Publish now') }}
+          </button>
+          <button class="btn btn-ghost" [disabled]="saving()" (click)="save('DRAFT')">{{ meta()?.status === 'PUBLISHED' ? 'Unpublish → draft' : 'Save draft' }}</button>
+        </div>
+      } @else {
+        <p class="small text-muted mt-2">An editor will review and publish your post.</p>
+        <div class="d-grid gap-2">
+          <button class="btn btn-grad" [disabled]="saving()" (click)="save('REVIEW')"><i class="bi bi-send"></i> Submit for review</button>
+          <button class="btn btn-ghost" [disabled]="saving()" (click)="save('DRAFT')">Save draft</button>
+        </div>
+      }
+      <small class="text-muted d-block mt-2"><kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> saves</small>
+    </div>
+
+    <div class="eg-card eg-card-pad">
+      <label class="form-label">Subject / category *</label>
+      <app-node-select [value]="f.nodeId" (valueChange)="f.nodeId = $event; touch()" placeholder="Where does this belong?" />
+      <label class="form-label mt-3">Content type *</label>
+      <div class="types">
+        @for (t of tree.contentTypes(); track t.id) {
+          @if (t.active) { <button type="button" class="ty" [class.on]="f.contentTypeId === t.id" [style.--c]="t.color" (click)="f.contentTypeId = t.id; touch()">{{ t.name }}</button> }
+        }
+      </div>
+      <div class="row g-2 mt-2">
+        <div class="col-6"><label class="form-label">Language</label>
+          <select class="form-select form-select-sm" [(ngModel)]="f.language" (ngModelChange)="touch()"><option value="EN">English</option><option value="NE">नेपाली</option></select></div>
+        <div class="col-6"><label class="form-label">Level</label>
+          <select class="form-select form-select-sm" [(ngModel)]="f.difficulty" (ngModelChange)="touch()"><option value="">—</option><option value="BASIC">Basic</option><option value="INTERMEDIATE">Intermediate</option><option value="ADVANCED">Advanced</option></select></div>
+      </div>
+    </div>
+
+    <div class="eg-card eg-card-pad">
+      <label class="form-label">Tags</label>
+      <div class="tags">
+        @for (t of f.tags; track t) { <span class="tg">#{{ t }} <button (click)="removeTag(t)" aria-label="Remove">×</button></span> }
+      </div>
+      <input class="form-control form-control-sm mt-2" [(ngModel)]="tagInput" (keydown.enter)="$event.preventDefault(); addTag()" (blur)="tagInput && addTag()" placeholder="Type and press Enter (e.g. newton, chapter 3)">
+    </div>
+
+    <div class="eg-card eg-card-pad">
+      <label class="form-label">Cover image</label>
+      @if (f.coverImage) {
+        <div class="cover"><img [src]="f.coverImage" alt=""><button class="btn btn-sm btn-light" (click)="f.coverImage = ''; touch()"><i class="bi bi-x-lg"></i></button></div>
+      }
+      <app-media-picker (picked)="f.coverImage = $event.url; touch()" />
+      <label class="form-label mt-3">YouTube video <span class="text-muted fw-normal">(optional)</span></label>
+      <input class="form-control form-control-sm" [(ngModel)]="f.videoUrl" (ngModelChange)="touch()" placeholder="https://youtube.com/watch?v=…">
+    </div>
+
+    <div class="eg-card eg-card-pad">
+      <label class="form-check form-switch"><input class="form-check-input" type="checkbox" [(ngModel)]="f.allowComments" (ngModelChange)="touch()"> <span class="fw-bold small">Allow comments / doubts</span></label>
+      @if (canPublish()) {
+        <label class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" [(ngModel)]="f.featured" (ngModelChange)="touch()"> <span class="fw-bold small">⭐ Feature on home page</span></label>
+      }
+    </div>
+
+    @if (meta(); as m) {
+      <div class="eg-card eg-card-pad">
+        <h6 class="fw-800">Performance</h6>
+        <div class="nums"><div><b>{{ m.viewCount }}</b><small>reads</small></div><div><b>{{ m.likeCount }}</b><small>likes</small></div><div><b>{{ m.bookmarkCount }}</b><small>saves</small></div><div><b>{{ m.commentCount }}</b><small>comments</small></div></div>
+        @if (views().length) {
+          <div class="spark" [title]="totalViews30() + ' reads in 30 days'">@for (v of views(); track v.date) { <span [style.height.%]="(v.value / maxViews()) * 100" [title]="v.date + ': ' + v.value"></span> }</div>
+          <small class="text-muted">{{ totalViews30() }} reads in the last 30 days</small>
+        }
+        <hr>
+        <small class="text-muted d-block">By {{ m.authorName || '—' }} · created {{ m.createdAt | date: 'd MMM y' }}</small>
+      </div>
+    }
+  </aside>
+</div>

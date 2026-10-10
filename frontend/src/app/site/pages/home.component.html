@@ -1,0 +1,143 @@
+<section class="hero">
+  <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+  @for (s of stickers; track $index) { <span class="sticker s{{ $index }}">{{ s }}</span> }
+  <div class="container-xl hero-inner">
+    @if (auth.me()) {
+      <div class="hello pop-in">👋 {{ greeting() }}, <strong>{{ firstName() }}</strong></div>
+    } @else {
+      <div class="hello pop-in">✨ Free for every student in Nepal</div>
+    }
+    <h1 class="pop-in">{{ site.s('home.heroTitle') || 'Homework stuck? Find the note in seconds.' }}</h1>
+    <p class="lead pop-in">{{ site.s('home.heroSubtitle') }}</p>
+    <form class="big-search pop-in" (submit)="$event.preventDefault(); search()">
+      <i class="bi bi-search"></i>
+      <input [value]="q" (input)="q = $any($event.target).value" [placeholder]="'Try “' + placeholders[ph()] + '”'" aria-label="Search notes">
+      <button class="btn btn-grad" type="submit"><span class="d-none d-sm-inline">Search</span><i class="bi bi-arrow-right d-sm-none"></i></button>
+    </form>
+    <div class="chip-row quick pop-in">
+      @for (n of home()?.featuredNodes || []; track n.id) {
+        @if (n.typeCode !== 'STREAM') {
+          <a class="chip" [routerLink]="['/explore', n.slug]"><app-icon [name]="n.icon" /> {{ n.shortName || n.name }}</a>
+        }
+      }
+    </div>
+    @if (home(); as h) {
+      <div class="stats pop-in">
+        <div><strong>{{ h.totalNotes | compact }}</strong><span>notes &amp; solutions</span></div>
+        <div><strong>{{ h.totalSubjects | compact }}</strong><span>subjects</span></div>
+        <div><strong>{{ h.streams.length }}</strong><span>streams</span></div>
+        <div><strong>100%</strong><span>free</span></div>
+      </div>
+    }
+  </div>
+</section>
+
+<div class="container-xl">
+  <app-promo-slot placement="HOME_HERO" layout="hero" class="d-block mb-5" />
+
+  @if (continueReading().length) {
+    <section class="mb-5">
+      <div class="section-title"><div><div class="kicker">Pick up where you left</div><h2>Continue reading</h2></div><a routerLink="/me">All history →</a></div>
+      <div class="row g-3">
+        @for (h of continueReading(); track h.post.id) {
+          <div class="col-md-6 col-lg-3">
+            <a class="cont eg-card eg-hover" [routerLink]="['/read', h.post.slug]">
+              <span class="cont-ico" [style.background]="(h.post.contentType.color || '#6C3BFF') + '22'"><app-icon [name]="h.post.node?.icon" /></span>
+              <div class="flex-grow-1 min-w-0">
+                <div class="fw-800 text-truncate">{{ h.post.title }}</div>
+                <div class="bar"><span [style.width.%]="h.progress"></span></div>
+                <small class="text-muted">{{ h.progress }}% · {{ h.lastReadAt | timeAgo }}</small>
+              </div>
+            </a>
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  @if (forYou().length) {
+    <section class="mb-5">
+      <div class="section-title"><div><div class="kicker">For you</div><h2>New in {{ auth.me()?.courseName }}</h2></div><a [routerLink]="['/explore', auth.me()?.courseSlug]">Open →</a></div>
+      <div class="row g-3">
+        @for (p of forYou(); track p.id) { <div class="col-sm-6 col-lg-4"><app-post-card [post]="p" /></div> }
+      </div>
+    </section>
+  }
+
+  <section class="mb-5">
+    <div class="section-title"><div><div class="kicker">Choose your path</div><h2>What are you studying?</h2></div><a routerLink="/explore">See everything →</a></div>
+    <div class="bento">
+      @if (!home()) { @for (i of [1,2,3,4,5,6]; track i) { <div class="skeleton" style="height:170px"></div> } }
+      @for (s of home()?.streams || []; track s.id; let i = $index) {
+        <a class="stream" [class.wide]="i === 0 || i === 3" [routerLink]="['/explore', s.slug]" [style.--c]="s.color || '#6C3BFF'">
+          <span class="s-emoji"><app-icon [name]="s.icon" /></span>
+          <div class="s-body">
+            <h3>{{ s.name }}</h3>
+            <p>{{ s.description }}</p>
+            <div class="s-kids">
+              @for (c of s.children.slice(0, 4); track c.id) { <span>{{ c.shortName || c.name }}</span> }
+              @if (s.children.length > 4) { <span>+{{ s.children.length - 4 }}</span> }
+            </div>
+          </div>
+          <span class="s-count">{{ s.postCount }} notes <i class="bi bi-arrow-up-right"></i></span>
+        </a>
+      }
+    </div>
+  </section>
+
+  @if (home()?.featured?.length) {
+    <section class="mb-5">
+      <div class="section-title"><div><div class="kicker">⭐ Editor's picks</div><h2>Must-read this week</h2></div></div>
+      <div class="rail">
+        @for (p of home()!.featured; track p.id) { <div class="rail-item"><app-post-card [post]="p" /></div> }
+      </div>
+    </section>
+  }
+
+  <app-promo-slot placement="HOME_STRIP" class="d-block mb-5" />
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="section-title">
+        <div><div class="kicker">Fresh from the team</div><h2>{{ tab() === 'latest' ? 'Latest notes' : 'Most read' }}</h2></div>
+        <div class="seg">
+          <button [class.on]="tab() === 'latest'" (click)="tab.set('latest')">Latest</button>
+          <button [class.on]="tab() === 'popular'" (click)="tab.set('popular')">Popular</button>
+        </div>
+      </div>
+      <div class="d-grid gap-3">
+        @if (!home()) { @for (i of [1,2,3]; track i) { <div class="skeleton" style="height:110px"></div> } }
+        @for (p of (tab() === 'latest' ? home()?.latest : home()?.popular) || []; track p.id) { <app-post-card [post]="p" variant="row" /> }
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="eg-card eg-card-pad mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="fw-800 m-0">📢 Notices</h5><a routerLink="/notices" class="small fw-bold">All</a></div>
+        @for (n of home()?.notices || []; track n.id) {
+          <a class="notice" [routerLink]="['/notices', n.slug]">
+            <span class="ncat" [class.imp]="n.important">{{ n.category }}</span>
+            <span class="ntitle">{{ n.title }}</span>
+            <small class="text-muted">{{ n.publishAt | timeAgo }}</small>
+          </a>
+        } @empty { <p class="text-muted small m-0">No notices right now.</p> }
+      </div>
+      <div class="quiz-card">
+        <div class="d-flex justify-content-between align-items-center mb-2"><h5 class="fw-800 m-0 text-white">⚡ Quick practice</h5><a routerLink="/quizzes" class="small fw-bold text-white">All</a></div>
+        @for (qz of home()?.quizzes || []; track qz.id) {
+          <a class="qz" [routerLink]="['/quiz', qz.slug]">
+            <div><div class="fw-800">{{ qz.title }}</div><small>{{ qz.questionCount }} questions{{ qz.timeLimitMinutes ? ' · ' + qz.timeLimitMinutes + ' min' : '' }}</small></div>
+            <i class="bi bi-play-circle-fill"></i>
+          </a>
+        } @empty { <p class="small m-0 opacity-75">Quizzes are coming soon.</p> }
+      </div>
+    </div>
+  </div>
+
+  <section class="cta-band mt-5">
+    <div>
+      <h2>Can't find your chapter?</h2>
+      <p>Request it. Our content team writes new notes every single day — and we start with what students ask for.</p>
+    </div>
+    <a class="btn btn-light btn-lg fw-800" routerLink="/me" [queryParams]="{ tab: 'requests' }">Request a note <i class="bi bi-send-fill ms-1"></i></a>
+  </section>
+</div>

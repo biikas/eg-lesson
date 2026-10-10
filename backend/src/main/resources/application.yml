@@ -1,0 +1,91 @@
+server:
+  port: ${SERVER_PORT:8090}
+  shutdown: graceful
+  forward-headers-strategy: native
+spring:
+  # The WAR in Tomcat defaults to "prod" (ServletInitializer); `mvn spring-boot:run` defaults to "dev" (main).
+  application:
+    name: eglesson
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      minimum-idle: 2
+      connection-timeout: 10000
+      max-lifetime: 1500000
+      transaction-isolation: TRANSACTION_READ_COMMITTED
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 30MB
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+app:
+  zone: ${APP_ZONE:Asia/Kathmandu}
+  jwt:
+    # HMAC-SHA256 key, at least 32 characters. Set JWT_SECRET in production; changing it signs everyone out.
+    secret: ${JWT_SECRET:dev-only-secret-change-me-dev-only-secret-change-me}
+    admin-hours: ${JWT_ADMIN_HOURS:12}
+    student-days: ${JWT_STUDENT_DAYS:30}
+  cors:
+    # Angular dev server. In production the frontend is served from the same origin, so this is unused.
+    allowed-origins: ${APP_CORS_ORIGINS:http://localhost:4200}
+  upload:
+    dir: ${APP_UPLOAD_DIR:./data/uploads}
+    allowed-types: image/jpeg,image/png,image/webp,image/gif,application/pdf
+  seed:
+    # Seeds stream/class/semester/subject tree, content types, roles and sample content into an EMPTY database.
+    catalog: ${APP_SEED_CATALOG:true}
+    demo-content: ${APP_SEED_DEMO:true}
+  admin:
+    # First start only (no admin accounts yet). With no password set, a one-time password is generated and written
+    # to the log. It must be changed at first sign-in either way.
+    bootstrap-username: ${APP_ADMIN_USERNAME:admin}
+    bootstrap-password: ${APP_ADMIN_PASSWORD:}
+---
+# Local development: local MySQL, schema `eglesson_dev`.
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: "${DB_URL:jdbc:mysql://127.0.0.1:3306/eglesson_dev?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true}"
+    username: "${DB_USERNAME:root}"
+    password: "${DB_PASSWORD:}"
+app:
+  admin:
+    bootstrap-password: ${APP_ADMIN_PASSWORD:Admin@123}
+---
+# Deployed: MySQL 8 on the same server (127.0.0.1), schema `eglesson`. DB_PASSWORD and JWT_SECRET must come
+# from the environment (/opt/tomcat/bin/setenv.sh); never put them in the WAR.
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: "${DB_URL:jdbc:mysql://127.0.0.1:3306/eglesson?useUnicode=true&characterEncoding=utf8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true}"
+    username: "${DB_USERNAME:eglesson_app}"
+    password: "${DB_PASSWORD}"
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  upload:
+    dir: ${APP_UPLOAD_DIR:${user.home}/eglesson/uploads}
+  seed:
+    demo-content: ${APP_SEED_DEMO:false}
+logging:
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: warn
